@@ -14,7 +14,7 @@ db.sqlite3
 db_backup/
 
 # Static and media files (optional, if managed separately)
-static/*
+# static/*
 
 # pyenv 
 .python-version
