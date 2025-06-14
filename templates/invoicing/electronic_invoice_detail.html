@@ -1,0 +1,232 @@
+{% extends 'invoicing/base.html' %}
+
+{% block title %}Factura {{ electronic_invoice.invoice_number }} - Sistema de Facturación Médica{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb pt-3">
+        <li class="breadcrumb-item"><a href="{% url 'invoicing:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'invoicing:electronic_invoice_list' %}">Facturas Electrónicas</a></li>
+        <li class="breadcrumb-item active">Factura {{ electronic_invoice.invoice_number }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Factura Electrónica {{ electronic_invoice.invoice_number }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'invoicing:electronic_invoice_pdf' electronic_invoice.pk %}" class="btn btn-outline-danger me-2">
+            <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+        </a>
+        <a href="{% url 'invoicing:patient_invoice_create' electronic_invoice.pk %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Agregar Factura de Paciente
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Invoice Header Information -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-receipt"></i> Información de la Factura Electrónica
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <strong>Número de Factura:</strong><br>
+                <span class="h5">{{ electronic_invoice.invoice_number }}</span>
+            </div>
+            <div class="col-md-4">
+                <strong>Fecha:</strong><br>
+                {{ electronic_invoice.date|date:"d/m/Y" }}
+            </div>
+            <div class="col-md-4">
+                <strong>Total de Pacientes:</strong><br>
+                <span class="badge bg-primary">{{ patient_invoices.count }} paciente{{ patient_invoices.count|pluralize }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Totals -->
+{% if patient_invoices %}
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-calculator"></i> Resumen de Totales
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-3">
+                <h6>Monto ASEMBIS (15%)</h6>
+                <span class="h4 currency text-success">₡{{ totals.monto_asembis|floatformat:2 }}</span>
+            </div>
+            <div class="col-md-3">
+                <h6>Monto DR (85%)</h6>
+                <span class="h4 currency text-info">₡{{ totals.monto_dr|floatformat:2 }}</span>
+            </div>
+            <div class="col-md-3">
+                <h6>I.V.A. (4%)</h6>
+                <span class="h4 currency text-warning">₡{{ totals.iva|floatformat:2 }}</span>
+            </div>
+            <div class="col-md-3">
+                <h6>Total General</h6>
+                <span class="h3 currency text-primary">₡{{ totals.total|floatformat:2 }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Patient Invoices in Table Format -->
+{% if patient_invoices %}
+    <div class="card mb-4">
+        <div class="card-header bg-white border-0">
+            <h5 class="mb-0">
+                <i class="bi bi-table"></i> Detalle de Facturas por Paciente
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm" style="font-size: 0.8rem;">
+                    <thead class="table-light" style="font-size: 0.75rem;">
+                        <tr>
+                            <th>Paciente</th>
+                            <th>No. Factura</th>
+                            <th>Sucursal</th>
+                            <th>Código</th>
+                            <th>Tratamiento</th>
+                            <th class="text-end">Subtotal</th>
+                            <th class="text-end">Monto ASEMBIS (15%)</th>
+                            <th class="text-end">Monto DR (85%)</th>
+                            <th class="text-end">I.V.A. (4%)</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for patient_invoice in patient_invoices %}
+                            {% for item in patient_invoice.items.all %}
+                            <tr>
+                                {% if forloop.first %}
+                                <td rowspan="{{ patient_invoice.items.count }}" class="align-middle">
+                                    <strong>{{ patient_invoice.patient.full_name }}</strong><br>
+                                    <small class="text-muted">{{ patient_invoice.patient.cedula }}</small>
+                                </td>
+                                <td rowspan="{{ patient_invoice.items.count }}" class="align-middle">
+                                    <strong>{{ patient_invoice.invoice_number }}</strong>
+                                </td>
+                                <td rowspan="{{ patient_invoice.items.count }}" class="align-middle">
+                                    <span class="badge bg-light text-dark">{{ patient_invoice.branch.name }}</span>
+                                </td>
+                                {% endif %}
+                                <td><strong>{{ item.treatment.code }}</strong></td>
+                                <td>{{ item.treatment.name }}</td>
+                                <td class="text-end currency">₡{{ item.subtotal|floatformat:2 }}</td>
+                                <td class="text-end currency">₡{{ item.monto_asembis|floatformat:2 }}</td>
+                                <td class="text-end currency">₡{{ item.monto_dr|floatformat:2 }}</td>
+                                <td class="text-end currency">₡{{ item.iva|floatformat:2 }}</td>
+                                <td class="text-end"><strong class="currency">₡{{ item.total|floatformat:2 }}</strong></td>
+                                {% if forloop.first %}
+                                <td rowspan="{{ patient_invoice.items.count }}" class="text-end align-middle">
+                                    <a href="{% url 'invoicing:patient_invoice_detail' patient_invoice.pk %}" 
+                                       class="btn btn-sm btn-outline-primary btn-action">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </a>
+                                    <a href="{% url 'invoicing:patient_invoice_update' patient_invoice.pk %}" 
+                                       class="btn btn-sm btn-outline-warning btn-action">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2">
+                                    <strong>{{ patient_invoice.patient.full_name }}</strong><br>
+                                    <small class="text-muted">{{ patient_invoice.patient.cedula }}</small>
+                                </td>
+                                <td>{{ patient_invoice.invoice_number }}</td>
+                                <td colspan="6" class="text-center text-muted">
+                                    <em>No hay tratamientos agregados</em>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'invoicing:patient_invoice_detail' patient_invoice.pk %}" 
+                                       class="btn btn-sm btn-outline-primary btn-action">
+                                        <i class="bi bi-plus"></i> Agregar
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <div class="text-center py-5">
+                <i class="bi bi-person-plus fs-1 text-muted"></i>
+                <h4 class="text-muted">No hay facturas de pacientes</h4>
+                <p class="text-muted">Comience agregando una factura de paciente a esta factura electrónica.</p>
+                <a href="{% url 'invoicing:patient_invoice_create' electronic_invoice.pk %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Agregar Primera Factura de Paciente
+                </a>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Calculate and display patient subtotals properly
+    const patientCards = document.querySelectorAll('.card:has(.table)');
+    
+    patientCards.forEach(function(card) {
+        const tbody = card.querySelector('tbody');
+        if (!tbody) return;
+        
+        const rows = tbody.querySelectorAll('tr');
+        let subtotal = 0, asembis = 0, dr = 0, iva = 0, total = 0;
+        
+        rows.forEach(function(row) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 8) {
+                // Extract numeric values (remove ₡ and commas)
+                const itemSubtotal = parseFloat(cells[3].textContent.replace(/[₡,]/g, '')) || 0;
+                const itemAsembis = parseFloat(cells[4].textContent.replace(/[₡,]/g, '')) || 0;
+                const itemDr = parseFloat(cells[5].textContent.replace(/[₡,]/g, '')) || 0;
+                const itemIva = parseFloat(cells[6].textContent.replace(/[₡,]/g, '')) || 0;
+                const itemTotal = parseFloat(cells[7].textContent.replace(/[₡,]/g, '')) || 0;
+                
+                subtotal += itemSubtotal;
+                asembis += itemAsembis;
+                dr += itemDr;
+                iva += itemIva;
+                total += itemTotal;
+            }
+        });
+        
+        // Update footer if it exists
+        const tfoot = card.querySelector('tfoot tr');
+        if (tfoot) {
+            const footerCells = tfoot.querySelectorAll('th');
+            if (footerCells.length >= 8) {
+                footerCells[3].innerHTML = `₡${subtotal.toFixed(2)}`;
+                footerCells[4].innerHTML = `₡${asembis.toFixed(2)}`;
+                footerCells[5].innerHTML = `₡${dr.toFixed(2)}`;
+                footerCells[6].innerHTML = `₡${iva.toFixed(2)}`;
+                footerCells[7].innerHTML = `<strong>₡${total.toFixed(2)}</strong>`;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

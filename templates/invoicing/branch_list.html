@@ -1,0 +1,88 @@
+<!-- branch_list.html -->
+{% extends 'invoicing/base.html' %}
+
+{% block title %}Sucursales - Sistema de Facturación Médica{% endblock %}
+
+{% block breadcrumb %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Sucursales</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'invoicing:branch_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nueva Sucursal
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-8">
+                <label for="search" class="form-label">Buscar Sucursal</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ request.GET.search }}" 
+                       placeholder="Buscar por nombre de sucursal...">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+                <a href="{% url 'invoicing:branch_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Branches Table -->
+<div class="card">
+    <div class="card-body">
+        {% if branches %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nombre de Sucursal</th>
+                            <th>Fecha de Creación</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for branch in branches %}
+                        <tr>
+                            <td><strong>{{ branch.name }}</strong></td>
+                            <td>{{ branch.created_at|date:"d/m/Y" }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'invoicing:branch_update' branch.pk %}" 
+                                   class="btn btn-sm btn-outline-warning btn-action">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-building fs-1 text-muted"></i>
+                <h4 class="text-muted">No se encontraron sucursales</h4>
+                {% if request.GET.search %}
+                    <p class="text-muted">No hay resultados para "{{ request.GET.search }}"</p>
+                    <a href="{% url 'invoicing:branch_list' %}" class="btn btn-outline-secondary">
+                        Ver todas las sucursales
+                    </a>
+                {% else %}
+                    <p class="text-muted">Comience agregando una nueva sucursal al sistema.</p>
+                    <a href="{% url 'invoicing:branch_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Agregar Primera Sucursal
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,443 @@
+{% extends 'invoicing/base.html' %}
+
+{% block title %}Factura {{ patient_invoice.invoice_number }} - {{ patient_invoice.patient.full_name }} - Sistema de Facturación Médica{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb pt-3">
+        <li class="breadcrumb-item"><a href="{% url 'invoicing:dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'invoicing:electronic_invoice_list' %}">Facturas Electrónicas</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'invoicing:electronic_invoice_detail' patient_invoice.electronic_invoice.pk %}">Factura {{ patient_invoice.electronic_invoice.invoice_number }}</a></li>
+        <li class="breadcrumb-item active">Factura {{ patient_invoice.invoice_number }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Factura {{ patient_invoice.invoice_number }} - {{ patient_invoice.patient.full_name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'invoicing:patient_invoice_update' patient_invoice.pk %}" class="btn btn-outline-warning me-2">
+            <i class="bi bi-pencil"></i> Editar Factura
+        </a>
+        <button type="button" class="btn btn-primary" id="add-treatment-btn">
+            <i class="bi bi-plus-circle"></i> Agregar Tratamiento
+        </button>
+    </div>
+</div>
+
+<!-- Hidden CSRF Token -->
+<form style="display: none;">
+    {% csrf_token %}
+</form>
+{% endblock %}
+
+{% block content %}
+<!-- Patient Invoice Information -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h6 class="mb-0">
+            <i class="bi bi-person-badge"></i> Información de la Factura de Paciente
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Paciente:</strong><br>
+                <span class="h6">{{ patient_invoice.patient.full_name }}</span><br>
+                <small class="text-muted">Cédula: {{ patient_invoice.patient.cedula }}</small>
+            </div>
+            <div class="col-md-3">
+                <strong>Número de Factura:</strong><br>
+                <span class="h6">{{ patient_invoice.invoice_number }}</span>
+            </div>
+            <div class="col-md-3">
+                <strong>Fecha:</strong><br>
+                {{ patient_invoice.date|date:"d/m/Y" }}
+            </div>
+            <div class="col-md-3">
+                <strong>Factura Electrónica:</strong><br>
+                <a href="{% url 'invoicing:electronic_invoice_detail' patient_invoice.electronic_invoice.pk %}" class="btn btn-sm btn-outline-primary">
+                    {{ patient_invoice.electronic_invoice.invoice_number }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Treatment Items -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-clipboard2-pulse"></i> Tratamientos Facturados
+        </h6>
+        <span class="badge bg-primary">{{ items.count }} tratamiento{{ items.count|pluralize }}</span>
+    </div>
+    <div class="card-body">
+        {% if items %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Tratamiento</th>
+                            <th class="text-end">Precio Unit.</th>
+                            <th class="text-end">Subtotal</th>
+                            <th class="text-end">Monto ASEMBIS (15%)</th>
+                            <th class="text-end">Monto DR (85%)</th>
+                            <th class="text-end">I.V.A. (4%)</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="treatments-tbody">
+                        {% for item in items %}
+                        <tr data-item-id="{{ item.id }}">
+                            <td><strong>{{ item.treatment.code }}</strong></td>
+                            <td>{{ item.treatment.name }}</td>
+                            <td class="text-end currency">₡{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end currency subtotal">₡{{ item.subtotal|floatformat:2 }}</td>
+                            <td class="text-end currency monto-asembis">₡{{ item.monto_asembis|floatformat:2 }}</td>
+                            <td class="text-end currency monto-dr">₡{{ item.monto_dr|floatformat:2 }}</td>
+                            <td class="text-end currency iva">₡{{ item.iva|floatformat:2 }}</td>
+                            <td class="text-end currency total"><strong>₡{{ item.total|floatformat:2 }}</strong></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-item-btn">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="3">Totales:</th>
+                            <th class="text-end currency" id="total-subtotal">₡{{ totals.subtotal|floatformat:2 }}</th>
+                            <th class="text-end currency" id="total-asembis">₡{{ totals.monto_asembis|floatformat:2 }}</th>
+                            <th class="text-end currency" id="total-dr">₡{{ totals.monto_dr|floatformat:2 }}</th>
+                            <th class="text-end currency" id="total-iva">₡{{ totals.iva|floatformat:2 }}</th>
+                            <th class="text-end currency" id="total-general"><strong>₡{{ totals.total|floatformat:2 }}</strong></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-clipboard2-x fs-1 text-muted"></i>
+                <h4 class="text-muted">No hay tratamientos en esta factura</h4>
+                <p class="text-muted">Comience agregando tratamientos a esta factura de paciente.</p>
+                <button type="button" class="btn btn-primary" id="add-first-treatment-btn">
+                    <i class="bi bi-plus-circle"></i> Agregar Primer Tratamiento
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Treatment Modal -->
+<div class="modal fade" id="addTreatmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Tratamiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-treatment-form">
+                    <div class="mb-3">
+                        <label class="form-label">Tratamiento</label>
+                        <div class="input-group">
+                            <select class="form-select" id="treatment-select" required>
+                                <option value="">Seleccione un tratamiento...</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary" id="search-treatment-btn">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="treatment-preview" class="card d-none">
+                        <div class="card-body">
+                            <h6>Vista Previa:</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>Código:</strong><br>
+                                    <span id="preview-code">-</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Nombre:</strong><br>
+                                    <span id="preview-name">-</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Precio:</strong><br>
+                                    <span id="preview-price" class="currency">₡0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-treatment-btn" disabled>
+                    <i class="bi bi-plus-circle"></i> Agregar Tratamiento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Treatment Search Modal -->
+<div class="modal fade" id="treatmentSearchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Buscar Tratamiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="treatment-search-input" 
+                           placeholder="Buscar por código o nombre...">
+                </div>
+                <div id="treatment-search-results">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-search fs-3"></i>
+                        <p>Escriba para buscar tratamientos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addTreatmentModal = new bootstrap.Modal(document.getElementById('addTreatmentModal'));
+    const treatmentSearchModal = new bootstrap.Modal(document.getElementById('treatmentSearchModal'));
+    const treatmentSelect = document.getElementById('treatment-select');
+    const saveTreatmentBtn = document.getElementById('save-treatment-btn');
+    
+    // Load treatments when modal opens
+    document.getElementById('add-treatment-btn').addEventListener('click', function() {
+        loadTreatments();
+        addTreatmentModal.show();
+    });
+    
+    // Also handle the "add first treatment" button
+    const addFirstBtn = document.getElementById('add-first-treatment-btn');
+    if (addFirstBtn) {
+        addFirstBtn.addEventListener('click', function() {
+            loadTreatments();
+            addTreatmentModal.show();
+        });
+    }
+    
+    function loadTreatments() {
+        fetch('/ajax/treatments/')
+            .then(response => response.json())
+            .then(data => {
+                treatmentSelect.innerHTML = '<option value="">Seleccione un tratamiento...</option>';
+                data.treatments.forEach(treatment => {
+                    const option = document.createElement('option');
+                    option.value = treatment.id;
+                    option.textContent = `${treatment.code} - ${treatment.name} (₡${parseFloat(treatment.price).toFixed(2)})`;
+                    option.dataset.code = treatment.code;
+                    option.dataset.name = treatment.name;
+                    option.dataset.price = treatment.price;
+                    treatmentSelect.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading treatments:', error));
+    }
+    
+    // Treatment selection preview
+    treatmentSelect.addEventListener('change', function() {
+        const option = this.selectedOptions[0];
+        const preview = document.getElementById('treatment-preview');
+        
+        if (this.value && option) {
+            document.getElementById('preview-code').textContent = option.dataset.code;
+            document.getElementById('preview-name').textContent = option.dataset.name;
+            document.getElementById('preview-price').textContent = formatCurrency(parseFloat(option.dataset.price));
+            preview.classList.remove('d-none');
+            saveTreatmentBtn.disabled = false;
+        } else {
+            preview.classList.add('d-none');
+            saveTreatmentBtn.disabled = true;
+        }
+    });
+    
+    // Save treatment
+    saveTreatmentBtn.addEventListener('click', function() {
+        const treatmentId = treatmentSelect.value;
+        
+        if (!treatmentId) {
+            alert('Por favor seleccione un tratamiento.');
+            return;
+        }
+        
+        showLoading(this);
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                         document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            hideLoading(this);
+            alert('Error: Token de seguridad no encontrado. Recargue la página.');
+            return;
+        }
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        
+        form.innerHTML = `
+            <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+            <input type="hidden" name="action" value="add_treatment">
+            <input type="hidden" name="treatment_id" value="${treatmentId}">
+        `;
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
+    
+    // Delete item functionality
+    document.querySelectorAll('.delete-item-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (confirm('¿Está seguro de que desea eliminar este tratamiento?')) {
+                const itemId = this.closest('tr').dataset.itemId;
+                deleteItem(itemId);
+            }
+        });
+    });
+    
+    function deleteItem(itemId) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                         document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        
+        if (!csrfToken) {
+            alert('Error: Token de seguridad no encontrado. Recargue la página.');
+            return;
+        }
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        
+        form.innerHTML = `
+            <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+            <input type="hidden" name="action" value="delete_item">
+            <input type="hidden" name="item_id" value="${itemId}">
+        `;
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+    
+    // Treatment search functionality
+    document.getElementById('search-treatment-btn').addEventListener('click', function() {
+        treatmentSearchModal.show();
+    });
+    
+    const treatmentSearchInput = document.getElementById('treatment-search-input');
+    const treatmentResultsDiv = document.getElementById('treatment-search-results');
+    
+    let searchTimeout;
+    treatmentSearchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            if (query.length >= 2) {
+                searchTreatments(query);
+            } else {
+                treatmentResultsDiv.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="bi bi-search fs-3"></i>
+                        <p>Escriba al menos 2 caracteres para buscar</p>
+                    </div>
+                `;
+            }
+        }, 300);
+    });
+    
+    function searchTreatments(query) {
+        treatmentResultsDiv.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm me-2"></div>
+                Buscando tratamientos...
+            </div>
+        `;
+        
+        fetch(`/ajax/treatments/?search=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.treatments && data.treatments.length > 0) {
+                    let html = '<div class="list-group">';
+                    data.treatments.forEach(treatment => {
+                        html += `
+                            <button type="button" class="list-group-item list-group-item-action treatment-option" 
+                                    data-treatment-id="${treatment.id}"
+                                    data-code="${treatment.code}"
+                                    data-name="${treatment.name}"
+                                    data-price="${treatment.price}">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong>${treatment.code}</strong> - ${treatment.name}<br>
+                                        <small class="text-muted">Precio: ₡${parseFloat(treatment.price).toFixed(2)}</small>
+                                    </div>
+                                    <div class="align-self-center">
+                                        <i class="bi bi-arrow-right text-primary"></i>
+                                    </div>
+                                </div>
+                            </button>
+                        `;
+                    });
+                    html += '</div>';
+                    treatmentResultsDiv.innerHTML = html;
+                    
+                    // Add click handlers
+                    document.querySelectorAll('.treatment-option').forEach(option => {
+                        option.addEventListener('click', function() {
+                            const treatmentId = this.dataset.treatmentId;
+                            
+                            // Find and select the option in the main select
+                            const mainOption = Array.from(treatmentSelect.options).find(opt => opt.value === treatmentId);
+                            if (mainOption) {
+                                treatmentSelect.value = treatmentId;
+                                treatmentSelect.dispatchEvent(new Event('change'));
+                            }
+                            
+                            treatmentSearchModal.hide();
+                        });
+                    });
+                } else {
+                    treatmentResultsDiv.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="bi bi-clipboard2-x fs-3"></i>
+                            <p>No se encontraron tratamientos con "${query}"</p>
+                            <a href="/treatments/create/" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-plus"></i> Crear Nuevo Tratamiento
+                            </a>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error searching treatments:', error);
+                treatmentResultsDiv.innerHTML = `
+                    <div class="text-center text-danger">
+                        <i class="bi bi-exclamation-triangle fs-3"></i>
+                        <p>Error al buscar tratamientos</p>
+                    </div>
+                `;
+            });
+    }
+});
+</script>
+{% endblock %}

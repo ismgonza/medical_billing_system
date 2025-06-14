@@ -1,0 +1,175 @@
+{% extends 'invoicing/base.html' %}
+
+{% block title %}Facturas Electrónicas - Sistema de Facturación Médica{% endblock %}
+
+{% block breadcrumb %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Facturas Electrónicas</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'invoicing:electronic_invoice_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nueva Factura Electrónica
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Search and Filter Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3" id="filter-form">
+            <div class="col-md-4">
+                <label for="search" class="form-label">Número de Factura</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ current_filters.search }}" 
+                       placeholder="Buscar por número...">
+            </div>
+            <div class="col-md-3">
+                <label for="month" class="form-label">Mes</label>
+                <select class="form-select" id="month" name="month">
+                    <option value="">Todos</option>
+                    <option value="1" {% if current_filters.month == "1" %}selected{% endif %}>Enero</option>
+                    <option value="2" {% if current_filters.month == "2" %}selected{% endif %}>Febrero</option>
+                    <option value="3" {% if current_filters.month == "3" %}selected{% endif %}>Marzo</option>
+                    <option value="4" {% if current_filters.month == "4" %}selected{% endif %}>Abril</option>
+                    <option value="5" {% if current_filters.month == "5" %}selected{% endif %}>Mayo</option>
+                    <option value="6" {% if current_filters.month == "6" %}selected{% endif %}>Junio</option>
+                    <option value="7" {% if current_filters.month == "7" %}selected{% endif %}>Julio</option>
+                    <option value="8" {% if current_filters.month == "8" %}selected{% endif %}>Agosto</option>
+                    <option value="9" {% if current_filters.month == "9" %}selected{% endif %}>Septiembre</option>
+                    <option value="10" {% if current_filters.month == "10" %}selected{% endif %}>Octubre</option>
+                    <option value="11" {% if current_filters.month == "11" %}selected{% endif %}>Noviembre</option>
+                    <option value="12" {% if current_filters.month == "12" %}selected{% endif %}>Diciembre</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="year" class="form-label">Año</label>
+                <input type="number" class="form-control" id="year" name="year" 
+                       value="{{ current_filters.year }}" min="2020" max="2030" placeholder="2024">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                <a href="{% url 'invoicing:electronic_invoice_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Electronic Invoices Table -->
+<div class="card">
+    <div class="card-body">
+        {% if invoices %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Número de Factura</th>
+                            <th>Fecha</th>
+                            <th class="text-center">Pacientes</th>
+                            <th>Fecha de Creación</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.date|date:"d/m/Y" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-primary">{{ invoice.patient_invoices.count }}</span>
+                            </td>
+                            <td>{{ invoice.created_at|date:"d/m/Y H:i" }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'invoicing:electronic_invoice_detail' invoice.pk %}" 
+                                   class="btn btn-sm btn-outline-primary btn-action">
+                                    <i class="bi bi-eye"></i> Ver
+                                </a>
+                                <a href="{% url 'invoicing:patient_invoice_create' invoice.pk %}" 
+                                   class="btn btn-sm btn-outline-success btn-action">
+                                    <i class="bi bi-plus"></i> Agregar Factura de Paciente
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <nav aria-label="Paginación de facturas">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Primera</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
+                        </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Siguiente</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-receipt fs-1 text-muted"></i>
+                <h4 class="text-muted">No se encontraron facturas electrónicas</h4>
+                {% if current_filters.search or current_filters.branch or current_filters.month or current_filters.year %}
+                    <p class="text-muted">No hay resultados para los filtros aplicados</p>
+                    <a href="{% url 'invoicing:electronic_invoice_list' %}" class="btn btn-outline-secondary">
+                        Ver todas las facturas
+                    </a>
+                {% else %}
+                    <p class="text-muted">Comience creando una nueva factura electrónica.</p>
+                    <a href="{% url 'invoicing:electronic_invoice_create' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Crear Primera Factura
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-submit form when filters change
+    const filterSelects = document.querySelectorAll('#month, #year');
+    filterSelects.forEach(function(select) {
+        select.addEventListener('change', function() {
+            document.getElementById('filter-form').submit();
+        });
+    });
+    
+    // Search functionality
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        initializeSearch(searchInput, function(value) {
+            if (value.length >= 2 || value.length === 0) {
+                document.getElementById('filter-form').submit();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

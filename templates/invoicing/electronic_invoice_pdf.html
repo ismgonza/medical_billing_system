@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Factura Electrónica {{ electronic_invoice.invoice_number }}</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.3;
+            color: #333;
+        }
+        
+        .header-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+        
+        .header-left, .header-right {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .header-item {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #ccc;
+            padding-bottom: 3px;
+        }
+        
+        .header-label {
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .header-value {
+            font-weight: bold;
+            color: #000;
+        }
+        
+        .totals-section {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+        }
+        
+        .totals-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #28a745;
+            padding: 8px;
+            margin: -15px -15px 15px -15px;
+            text-align: center;
+        }
+        
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            text-align: center;
+        }
+        
+        .total-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        
+        .total-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 9px;
+            margin-bottom: 5px;
+        }
+        
+        .total-amount {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+        }
+        
+        .total-amount.final {
+            color: #28a745;
+            font-size: 14px;
+        }
+        
+        .details-section {
+            border: 1px solid #ddd;
+        }
+        
+        .details-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff;
+            padding: 8px;
+            text-align: center;
+            margin: 0;
+        }
+        
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+        }
+        
+        .details-table th {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .details-table td {
+            border: 1px solid #ddd;
+            padding: 6px 4px;
+            text-align: center;
+        }
+        
+        .details-table .text-left {
+            text-align: left;
+        }
+        
+        .details-table .text-right {
+            text-align: right;
+        }
+        
+        .currency {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .patient-name {
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .branch-badge {
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 7px;
+        }
+        
+        .treatment-code {
+            font-weight: bold;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Information -->
+    <div class="header-info">
+        <div class="header-left">
+            <div class="header-item">
+                <span class="header-label">Cédula:</span>
+                <span class="header-value">114020108</span>
+            </div>
+            <div class="header-item">
+                <span class="header-label">Plazo de Pago:</span>
+                <span class="header-value">15 días</span>
+            </div>
+            <div class="header-item">
+                <span class="header-label">Cuenta Bancaria:</span>
+                <span class="header-value">BAC SAN JOSE CR90010200009357391022</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="header-item">
+                <span class="header-label">No. de Factura Electrónica:</span>
+                <span class="header-value">{{ electronic_invoice.invoice_number }}</span>
+            </div>
+            <div class="header-item">
+                <span class="header-label">Fecha de Factura Electrónica:</span>
+                <span class="header-value">{{ electronic_invoice.date|date:"d/m/Y" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen de Totales -->
+    <div class="totals-section">
+        <div class="totals-title">Resumen de Totales</div>
+        <div class="totals-grid">
+            <div class="total-item">
+                <div class="total-label">Monto ASEMBIS (15%)</div>
+                <div class="total-amount currency">₡{{ totals.monto_asembis|floatformat:2 }}</div>
+            </div>
+            <div class="total-item">
+                <div class="total-label">Monto DR (85%)</div>
+                <div class="total-amount currency">₡{{ totals.monto_dr|floatformat:2 }}</div>
+            </div>
+            <div class="total-item">
+                <div class="total-label">I.V.A. (4%)</div>
+                <div class="total-amount currency">₡{{ totals.iva|floatformat:2 }}</div>
+            </div>
+            <div class="total-item">
+                <div class="total-label">Total General</div>
+                <div class="total-amount final">₡{{ totals.total|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalle de Facturas por Paciente -->
+    <div class="details-section">
+        <div class="details-title">Detalle de Facturas por Paciente</div>
+        <table class="details-table">
+            <thead>
+                <tr>
+                    <th>Paciente</th>
+                    <th>No. Factura</th>
+                    <th>Sucursal</th>
+                    <th>Código</th>
+                    <th>Tratamiento</th>
+                    <th>Subtotal</th>
+                    <th>Monto ASEMBIS<br>(15%)</th>
+                    <th>Monto DR<br>(85%)</th>
+                    <th>I.V.A.<br>(4%)</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for patient_invoice in patient_invoices %}
+                    {% for item in patient_invoice.items.all %}
+                    <tr>
+                        {% if forloop.first %}
+                        <td rowspan="{{ patient_invoice.items.count }}" class="text-left patient-name">
+                            {{ patient_invoice.patient.full_name }}
+                        </td>
+                        <td rowspan="{{ patient_invoice.items.count }}">
+                            {{ patient_invoice.invoice_number }}
+                        </td>
+                        <td rowspan="{{ patient_invoice.items.count }}">
+                            <span class="branch-badge">{{ patient_invoice.branch.name }}</span>
+                        </td>
+                        {% endif %}
+                        <td class="treatment-code">{{ item.treatment.code }}</td>
+                        <td class="text-left">{{ item.treatment.name }}</td>
+                        <td class="text-right currency">₡{{ item.subtotal|floatformat:2 }}</td>
+                        <td class="text-right currency">₡{{ item.monto_asembis|floatformat:2 }}</td>
+                        <td class="text-right currency">₡{{ item.monto_dr|floatformat:2 }}</td>
+                        <td class="text-right currency">₡{{ item.iva|floatformat:2 }}</td>
+                        <td class="text-right currency">₡{{ item.total|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
