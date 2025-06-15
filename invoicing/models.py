@@ -18,68 +18,6 @@ class Branch(models.Model):
     def __str__(self):
         return self.name
 
-
-class Patient(models.Model):
-    """Paciente - Patient information"""
-    
-    def validate_cedula(value):
-        """Validate cedula format based on Costa Rican standards"""
-        # Remove any spaces or dashes
-        clean_value = re.sub(r'[\s-]', '', value)
-        
-        # Nacional: 9 digits
-        if re.match(r'^\d{9}$', clean_value):
-            return clean_value
-        
-        # Residente: 12 digits
-        elif re.match(r'^\d{12}$', clean_value):
-            return clean_value
-        
-        # Extranjero: up to 20 alphanumeric characters
-        elif re.match(r'^[a-zA-Z0-9]{1,20}$', clean_value):
-            return clean_value
-        
-        else:
-            raise ValidationError(
-                'Formato de cédula inválido. '
-                'Nacional: 9 dígitos, Residente: 12 dígitos, Extranjero: hasta 20 caracteres alfanuméricos.'
-            )
-
-    cedula = models.CharField(
-        'Cédula',
-        max_length=20,
-        unique=True,
-        validators=[validate_cedula],
-        help_text='Nacional: 9 dígitos, Residente: 12 dígitos, Extranjero: hasta 20 caracteres alfanuméricos'
-    )
-    name = models.CharField('Nombre', max_length=100)
-    lname1 = models.CharField('Primer Apellido', max_length=100)
-    lname2 = models.CharField('Segundo Apellido', max_length=100, blank=True)
-    created_at = models.DateTimeField('Fecha de Creación', auto_now_add=True)
-    updated_at = models.DateTimeField('Fecha de Actualización', auto_now=True)
-
-    class Meta:
-        verbose_name = 'Paciente'
-        verbose_name_plural = 'Pacientes'
-        ordering = ['lname1', 'lname2', 'name']
-
-    def clean(self):
-        if self.cedula:
-            self.cedula = Patient.validate_cedula(self.cedula)
-
-    def __str__(self):
-        if self.lname2:
-            return f"{self.name} {self.lname1} {self.lname2} - {self.cedula}"
-        return f"{self.name} {self.lname1} - {self.cedula}"
-
-    @property
-    def full_name(self):
-        """Return patient's full name"""
-        if self.lname2:
-            return f"{self.name} {self.lname1} {self.lname2}"
-        return f"{self.name} {self.lname1}"
-
-
 class Treatment(models.Model):
     """Tratamiento - Medical treatment or service"""
     code = models.CharField(
@@ -109,7 +47,7 @@ class Treatment(models.Model):
 
 
 class ElectronicInvoice(models.Model):
-    """Factura Electrónica - Electronic Invoice header"""
+    """Factura Electrónica - Electronic Invoice header (created later to group patient invoices)"""
     invoice_number = models.CharField(
         'Número de Factura Electrónica',
         max_length=50,
@@ -130,29 +68,39 @@ class ElectronicInvoice(models.Model):
 
 
 class PatientInvoice(models.Model):
-    """Factura de Paciente - Individual patient invoice within an electronic invoice"""
-    electronic_invoice = models.ForeignKey(
-        ElectronicInvoice,
-        on_delete=models.CASCADE,
-        verbose_name='Factura Electrónica',
-        related_name='patient_invoices'
+    """Factura de Paciente - Individual patient invoice (now the main starting point)"""
+    # Changed: patient_name is now a simple CharField instead of ForeignKey
+    patient_name = models.CharField(
+        'Nombre del Paciente',
+        max_length=200,
+        help_text='Nombre completo del paciente'
     )
-    patient = models.ForeignKey(
-        Patient,
-        on_delete=models.PROTECT,
-        verbose_name='Paciente'
-    )
+    
     branch = models.ForeignKey(
         Branch,
         on_delete=models.PROTECT,
         verbose_name='Sucursal'
     )
+    
     invoice_number = models.CharField(
-        'Número de Factura de Paciente',
+        'Número de Factura',
         max_length=50,
-        help_text='Número interno de factura del paciente'
+        help_text='Número de factura del paciente'
     )
-    date = models.DateField('Fecha de Factura del Paciente')
+    
+    date = models.DateField('Fecha de Factura')
+    
+    # Changed: electronic_invoice is now optional (can be assigned later)
+    electronic_invoice = models.ForeignKey(
+        ElectronicInvoice,
+        on_delete=models.CASCADE,
+        verbose_name='Factura Electrónica',
+        related_name='patient_invoices',
+        null=True,
+        blank=True,
+        help_text='Factura electrónica a la que pertenece (opcional, se puede asignar después)'
+    )
+    
     created_at = models.DateTimeField('Fecha de Creación', auto_now_add=True)
     updated_at = models.DateTimeField('Fecha de Actualización', auto_now=True)
 
@@ -160,10 +108,20 @@ class PatientInvoice(models.Model):
         verbose_name = 'Factura de Paciente'
         verbose_name_plural = 'Facturas de Pacientes'
         ordering = ['-date', '-invoice_number']
-        unique_together = ['electronic_invoice', 'invoice_number']
+        # Removed unique_together constraint since electronic_invoice is now optional
 
     def __str__(self):
-        return f"Factura {self.invoice_number} - {self.patient.full_name}"
+        return f"Factura {self.invoice_number} - {self.patient_name}"
+
+    @property
+    def total_amount(self):
+        """Calculate total amount for this invoice"""
+        return sum(item.total for item in self.items.all())
+
+    @property
+    def total_treatments(self):
+        """Get total number of treatments"""
+        return self.items.count()
 
 
 class PatientInvoiceItem(models.Model):

@@ -1,20 +1,56 @@
-/* Main styles for Medical Billing System */
+/* Clean Medical Billing System Styles */
 
+/* Navigation */
 .navbar-brand {
     font-weight: 600;
 }
 
-.card-stats {
-    border-left: 4px solid #0d6efd;
+.nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+    border-radius: 5px;
 }
 
-.currency {
-    color: #198754;
+/* Logout button styling to match nav links */
+.logout-btn {
+    background: none !important;
+    border: none !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+    text-decoration: none !important;
+    padding: 0.5rem 1rem !important;
+    display: block !important;
+    border-radius: 0.375rem !important;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.logout-btn:hover {
+    color: rgba(255, 255, 255, 1) !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Main content */
+.main-content {
+    min-height: calc(100vh - 76px);
+    padding-top: 2rem;
+}
+
+/* Cards */
+.card {
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
     font-weight: 600;
 }
 
-.table-responsive {
-    border-radius: 0.375rem;
+/* Buttons */
+.btn {
+    border-radius: 5px;
+    font-weight: 500;
 }
 
 .btn-action {
@@ -22,66 +58,88 @@
     font-size: 0.875rem;
 }
 
-.sidebar {
-    min-height: calc(100vh - 76px);
-    background: #f8f9fa;
-    border-right: 1px solid #dee2e6;
+/* Statistics cards */
+.stat-card {
+    border-left: 4px solid #0d6efd;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
 }
 
-.main-content {
-    min-height: calc(100vh - 76px);
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0d6efd;
 }
 
-.nav-link.active {
-    background-color: #0d6efd;
-    color: white !important;
+.stat-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-/* Custom icons and badges */
-.icon {
-    width: 3rem;
-    height: 3rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Tables */
+.table-responsive {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
 }
 
-.icon-shape {
-    padding: 12px;
-}
-
-/* Table enhancements */
-.table-flush {
-    border: none;
-}
-
-.table-flush thead th {
+.table th {
     border-top: none;
-    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
 }
 
-/* Card enhancements */
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
+/* Currency formatting */
+.currency {
+    color: #198754;
+    font-weight: 600;
 }
 
-.card-header {
-    background-color: rgba(0, 0, 0, 0.03);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+/* Status text colors - higher specificity */
+.table .status-assigned,
+span.status-assigned {
+    color: #198754 !important;
+    font-weight: 600;
 }
 
-/* Form enhancements */
+.table .status-unassigned,
+span.status-unassigned {
+    color: #dc3545 !important;
+    font-weight: 600;
+}
+
+/* Quick actions */
+.quick-action {
+    transition: transform 0.2s ease;
+    text-decoration: none;
+    color: inherit;
+}
+
+.quick-action:hover {
+    transform: translateY(-2px);
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Forms */
 .form-control:focus,
 .form-select:focus {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
 
-/* Alert enhancements */
-.alert {
-    border: none;
-    border-radius: 0.5rem;
+/* Empty states */
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
 }
 
 /* Loading states */
@@ -90,18 +148,18 @@
     pointer-events: none;
 }
 
-/* Responsive text */
+/* Responsive */
 @media (max-width: 768px) {
-    .h2 {
+    .main-content {
+        padding-top: 1rem;
+    }
+    
+    .stat-number {
         font-size: 1.5rem;
     }
     
     .btn-toolbar {
         flex-direction: column;
         gap: 0.5rem;
-    }
-    
-    .card-stats .row {
-        text-align: center;
     }
 }

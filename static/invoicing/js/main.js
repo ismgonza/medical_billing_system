@@ -1,4 +1,4 @@
-// Main JavaScript for Medical Billing System
+// Clean Medical Billing System JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
     
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 5000);
 
-    // Currency formatting function
+    // Currency formatting
     window.formatCurrency = function(amount) {
         return new Intl.NumberFormat('es-CR', {
             style: 'currency',
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).format(amount);
     };
 
-    // Format all elements with currency class
+    // Format currency elements
     const currencyElements = document.querySelectorAll('.format-currency');
     currencyElements.forEach(function(element) {
         const amount = parseFloat(element.textContent);
@@ -29,31 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Form validation helpers
-    window.showFieldError = function(fieldName, message) {
-        const field = document.querySelector(`[name="${fieldName}"]`);
-        if (field) {
-            field.classList.add('is-invalid');
-            let feedback = field.parentNode.querySelector('.invalid-feedback');
-            if (!feedback) {
-                feedback = document.createElement('div');
-                feedback.className = 'invalid-feedback';
-                field.parentNode.appendChild(feedback);
-            }
-            feedback.textContent = message;
-        }
-    };
-
-    window.clearFieldErrors = function() {
-        document.querySelectorAll('.is-invalid').forEach(function(field) {
-            field.classList.remove('is-invalid');
-        });
-        document.querySelectorAll('.invalid-feedback').forEach(function(feedback) {
-            feedback.remove();
-        });
-    };
-
-    // Loading state helpers
+    // Loading states
     window.showLoading = function(element) {
         element.classList.add('loading');
         const originalText = element.textContent;
@@ -70,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Search functionality
+    // Search functionality with debounce
     window.initializeSearch = function(searchInput, searchCallback) {
         let timeout;
         searchInput.addEventListener('input', function() {
@@ -81,5 +57,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    console.log('Medical Billing System - JavaScript loaded successfully');
+    // Confirmation dialogs
+    window.confirmAction = function(message) {
+        return confirm(message || '¿Está seguro de que desea realizar esta acción?');
+    };
+
+    console.log('Sistema de Facturación - JavaScript cargado correctamente');
 });

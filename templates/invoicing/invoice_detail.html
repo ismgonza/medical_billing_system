@@ -1,0 +1,167 @@
+{% extends 'invoicing/base.html' %}
+
+{% block title %}Factura {{ patient_invoice.invoice_number }} - Sistema de Facturación{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Factura {{ patient_invoice.invoice_number }}</h1>
+    <div>
+        <a href="{% url 'invoicing:patient_invoice_update' patient_invoice.pk %}" class="btn btn-outline-warning me-2">
+            <i class="bi bi-pencil"></i> Editar Factura
+        </a>
+        <button type="button" class="btn btn-primary" id="add-treatment-btn">
+            <i class="bi bi-plus-circle"></i> Agregar Tratamiento
+        </button>
+    </div>
+</div>
+
+<!-- Invoice Information -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Información de la Factura</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Paciente:</strong><br>
+                <span class="h6">{{ patient_invoice.patient_name }}</span>
+            </div>
+            <div class="col-md-3">
+                <strong>Sucursal:</strong><br>
+                {{ patient_invoice.branch.name }}
+            </div>
+            <div class="col-md-3">
+                <strong>Fecha:</strong><br>
+                {{ patient_invoice.date|date:"d/m/Y" }}
+            </div>
+            <div class="col-md-3">
+                <strong>Estado:</strong><br>
+                {% if patient_invoice.electronic_invoice %}
+                    <span class="status-assigned">Asignada</span>
+                {% else %}
+                    <span class="status-unassigned">Sin Asignar</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Treatments -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Tratamientos</h5>
+        <span class="badge bg-primary">{{ items.count }} tratamiento{{ items.count|pluralize }}</span>
+    </div>
+    <div class="card-body">
+        {% if items %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Tratamiento</th>
+                            <th class="text-end">Precio</th>
+                            <th class="text-end">Subtotal</th>
+                            <th class="text-end">ASEMBIS (15%)</th>
+                            <th class="text-end">DR (85%)</th>
+                            <th class="text-end">IVA (4%)</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr data-item-id="{{ item.id }}">
+                            <td><strong>{{ item.treatment.code }}</strong></td>
+                            <td>{{ item.treatment.name }}</td>
+                            <td class="text-end currency">₡{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end currency">₡{{ item.subtotal|floatformat:2 }}</td>
+                            <td class="text-end currency">₡{{ item.monto_asembis|floatformat:2 }}</td>
+                            <td class="text-end currency">₡{{ item.monto_dr|floatformat:2 }}</td>
+                            <td class="text-end currency">₡{{ item.iva|floatformat:2 }}</td>
+                            <td class="text-end currency"><strong>₡{{ item.total|floatformat:2 }}</strong></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-item-btn">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="3">Totales:</th>
+                            <th class="text-end currency">₡{{ totals.subtotal|floatformat:2 }}</th>
+                            <th class="text-end currency">₡{{ totals.monto_asembis|floatformat:2 }}</th>
+                            <th class="text-end currency">₡{{ totals.monto_dr|floatformat:2 }}</th>
+                            <th class="text-end currency">₡{{ totals.iva|floatformat:2 }}</th>
+                            <th class="text-end currency"><strong>₡{{ totals.total|floatformat:2 }}</strong></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h4>No hay tratamientos</h4>
+                <p>Agregue tratamientos a esta factura.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Treatment Modal -->
+<div class="modal fade" id="addTreatmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Tratamiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Seleccionar Tratamiento</label>
+                    <select class="form-select" id="treatment-select" required>
+                        <option value="">Cargando tratamientos...</option>
+                    </select>
+                </div>
+                
+                <div id="treatment-preview" class="card d-none">
+                    <div class="card-body">
+                        <h6>Vista Previa:</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>Código:</strong><br>
+                                <span id="preview-code">-</span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Nombre:</strong><br>
+                                <span id="preview-name">-</span>
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Precio:</strong><br>
+                                <span id="preview-price" class="currency">₡0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-treatment-btn" disabled>
+                    <i class="bi bi-plus-circle"></i> Agregar Tratamiento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden CSRF Token -->
+<form style="display: none;">
+    {% csrf_token %}
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/invoicing/js/invoice_detail.js"></script>
+{% endblock %}

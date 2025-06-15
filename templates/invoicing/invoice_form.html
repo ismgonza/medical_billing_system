@@ -1,0 +1,108 @@
+{% extends 'invoicing/base.html' %}
+
+{% block title %}
+    {% if object %}Editar Factura{% else %}Nueva Factura{% endif %} - Sistema de Facturación
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">
+        {% if object %}Editar Factura{% else %}Nueva Factura{% endif %}
+    </h1>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Información de la Factura</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="invoice-form">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.patient_name.id_for_label }}" class="form-label">
+                                Nombre del Paciente
+                            </label>
+                            {{ form.patient_name }}
+                            {% if form.patient_name.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.patient_name.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.branch.id_for_label }}" class="form-label">
+                                Sucursal
+                            </label>
+                            {{ form.branch }}
+                            {% if form.branch.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.branch.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.invoice_number.id_for_label }}" class="form-label">
+                                Número de Factura
+                            </label>
+                            {{ form.invoice_number }}
+                            {% if form.invoice_number.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.invoice_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.date.id_for_label }}" class="form-label">
+                                Fecha
+                            </label>
+                            {{ form.date }}
+                            {% if form.date.errors %}
+                                <div class="text-danger">
+                                    {% for error in form.date.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'invoicing:patient_invoice_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                            <i class="bi bi-check-circle"></i> 
+                            {% if object %}Actualizar{% else %}Crear{% endif %} Factura
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Next Steps -->
+        {% if not object %}
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-info-circle text-primary"></i> Siguiente Paso
+                </h6>
+                <p class="card-text">
+                    Después de crear la factura, podrá agregar los tratamientos realizados al paciente.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/invoicing/js/invoice_form.js"></script>
+{% endblock %}

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.db.models import Sum
 from .models import (
-    Branch, Patient, Treatment, ElectronicInvoice, 
+    Branch, Treatment, ElectronicInvoice, 
     PatientInvoice, PatientInvoiceItem
 )
 
@@ -12,25 +12,6 @@ class BranchAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at', 'updated_at']
     search_fields = ['name']
     readonly_fields = ['created_at', 'updated_at']
-
-
-@admin.register(Patient)
-class PatientAdmin(admin.ModelAdmin):
-    list_display = ['cedula', 'full_name', 'created_at']
-    list_filter = ['created_at', 'updated_at']
-    search_fields = ['cedula', 'name', 'lname1', 'lname2']
-    readonly_fields = ['created_at', 'updated_at']
-    
-    fieldsets = (
-        ('Información Personal', {
-            'fields': ('cedula', 'name', 'lname1', 'lname2')
-        }),
-        ('Información del Sistema', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
 
 @admin.register(Treatment)
 class TreatmentAdmin(admin.ModelAdmin):
@@ -59,7 +40,7 @@ class TreatmentAdmin(admin.ModelAdmin):
 class PatientInvoiceInline(admin.TabularInline):
     model = PatientInvoice
     extra = 0
-    fields = ['invoice_number', 'patient', 'branch', 'date']
+    fields = ['invoice_number', 'patient_name', 'branch', 'date']
     readonly_fields = []
 
 
@@ -126,20 +107,19 @@ class PatientInvoiceItemInline(admin.TabularInline):
 @admin.register(PatientInvoice)
 class PatientInvoiceAdmin(admin.ModelAdmin):
     list_display = [
-        'invoice_number', 'patient', 'branch', 'date', 
+        'invoice_number', 'patient_name', 'branch', 'date', 
         'electronic_invoice', 'items_count', 'invoice_total'
     ]
-    list_filter = ['date', 'branch', 'created_at']
+    list_filter = ['date', 'branch', 'created_at', 'electronic_invoice']
     search_fields = [
-        'invoice_number', 'patient__name', 'patient__lname1', 
-        'patient__cedula', 'electronic_invoice__invoice_number'
+        'invoice_number', 'patient_name', 'electronic_invoice__invoice_number'
     ]
     readonly_fields = ['created_at', 'updated_at']
     inlines = [PatientInvoiceItemInline]
     
     fieldsets = (
         ('Información de Factura', {
-            'fields': ('electronic_invoice', 'invoice_number', 'date', 'patient', 'branch')
+            'fields': ('electronic_invoice', 'invoice_number', 'date', 'patient_name', 'branch')
         }),
         ('Información del Sistema', {
             'fields': ('created_at', 'updated_at'),
@@ -172,8 +152,7 @@ class PatientInvoiceItemAdmin(admin.ModelAdmin):
     ]
     search_fields = [
         'patient_invoice__invoice_number',
-        'patient_invoice__patient__name',
-        'patient_invoice__patient__cedula',
+        'patient_invoice__patient_name',
         'treatment__name'
     ]
     readonly_fields = ['created_at']

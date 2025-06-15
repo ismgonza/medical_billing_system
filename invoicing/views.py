@@ -15,23 +15,24 @@ from decimal import Decimal
 import weasyprint
 
 from .models import (
-    Branch, Patient, Treatment, ElectronicInvoice, 
+    Branch, Treatment, ElectronicInvoice, 
     PatientInvoice, PatientInvoiceItem
 )
 from .forms import (
-    ElectronicInvoiceForm, PatientInvoiceForm, 
-    PatientInvoiceItemForm, PatientForm, TreatmentForm
+    ElectronicInvoiceForm, PatientInvoiceForm, StandalonePatientInvoiceForm,
+    PatientInvoiceItemForm, TreatmentForm
 )
 
 
 class DashboardView(LoginRequiredMixin, ListView):
-    """Dashboard principal con resumen de facturas"""
+    """Dashboard principal con resumen de facturas - Updated for new workflow"""
     template_name = 'invoicing/dashboard.html'
     context_object_name = 'recent_invoices'
     paginate_by = 10
 
     def get_queryset(self):
-        return ElectronicInvoice.objects.order_by('-date')[:10]
+        # Show recent patient invoices instead of electronic invoices
+        return PatientInvoice.objects.order_by('-date')[:10]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -49,7 +50,6 @@ class DashboardView(LoginRequiredMixin, ListView):
         )
         
         context.update({
-            'total_patients': Patient.objects.count(),
             'total_treatments': Treatment.objects.filter(is_active=True).count(),
             'monthly_invoices': PatientInvoice.objects.filter(
                 date__month=current_month,
@@ -57,329 +57,73 @@ class DashboardView(LoginRequiredMixin, ListView):
             ).count(),
             'monthly_revenue': monthly_stats['total_revenue'] or Decimal('0.00'),
             'monthly_items': monthly_stats['total_items'] or 0,
+            'unassigned_invoices': PatientInvoice.objects.filter(electronic_invoice__isnull=True).count(),
         })
         
         return context
 
 
-class ElectronicInvoicePDFView(LoginRequiredMixin, DetailView):
-    """Export electronic invoice as PDF"""
-    model = ElectronicInvoice
-    
-    def get(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        patient_invoices = self.object.patient_invoices.select_related('patient', 'branch').prefetch_related('items__treatment')
-        
-        # Calculate totals
-        total_monto_asembis = Decimal('0.00')
-        total_monto_dr = Decimal('0.00')
-        total_iva = Decimal('0.00')
-        total_general = Decimal('0.00')
-        
-        for patient_invoice in patient_invoices:
-            for item in patient_invoice.items.all():
-                total_monto_asembis += item.monto_asembis
-                total_monto_dr += item.monto_dr
-                total_iva += item.iva
-                total_general += item.total
-        
-        context = {
-            'electronic_invoice': self.object,
-            'patient_invoices': patient_invoices,
-            'totals': {
-                'monto_asembis': total_monto_asembis,
-                'monto_dr': total_monto_dr,
-                'iva': total_iva,
-                'total': total_general,
-            }
-        }
-        
-        # Render HTML template for PDF
-        html_string = render_to_string('invoicing/electronic_invoice_pdf.html', context)
-        
-        # Generate PDF
-        html = weasyprint.HTML(string=html_string)
-        pdf = html.write_pdf()
-        
-        # Return PDF response
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="factura_{self.object.invoice_number}.pdf"'
-        return response
-
-
-# Branch Views
-class BranchListView(ListView):
-    """Lista de sucursales"""
-    model = Branch
-    template_name = 'invoicing/branch_list.html'
-    context_object_name = 'branches'
-    paginate_by = 20
-
-    def get_queryset(self):
-        queryset = Branch.objects.all()
-        search = self.request.GET.get('search')
-        if search:
-            queryset = queryset.filter(name__icontains=search)
-        return queryset.order_by('name')
-
-
-class BranchCreateView(CreateView):
-    """Crear nueva sucursal"""
-    model = Branch
-    fields = ['name']
-    template_name = 'invoicing/branch_form.html'
-    success_url = reverse_lazy('invoicing:branch_list')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Sucursal creada exitosamente.')
-        return super().form_valid(form)
-
-
-class BranchUpdateView(UpdateView):
-    """Actualizar sucursal"""
-    model = Branch
-    fields = ['name']
-    template_name = 'invoicing/branch_form.html'
-    success_url = reverse_lazy('invoicing:branch_list')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Sucursal actualizada exitosamente.')
-        return super().form_valid(form)
-class PatientListView(ListView):
-    """Lista de pacientes"""
-    model = Patient
-    template_name = 'invoicing/patient_list.html'
-    context_object_name = 'patients'
-    paginate_by = 20
-
-    def get_queryset(self):
-        queryset = Patient.objects.all()
-        search = self.request.GET.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) |
-                Q(lname1__icontains=search) |
-                Q(lname2__icontains=search) |
-                Q(cedula__icontains=search)
-            )
-        return queryset.order_by('lname1', 'lname2', 'name')
-
-
-class PatientCreateView(CreateView):
-    """Crear nuevo paciente"""
-    model = Patient
-    form_class = PatientForm
-    template_name = 'invoicing/patient_form.html'
-    success_url = reverse_lazy('invoicing:patient_list')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Paciente creado exitosamente.')
-        return super().form_valid(form)
-
-
-class PatientDetailView(DetailView):
-    """Detalle de paciente con historial de facturas"""
-    model = Patient
-    template_name = 'invoicing/patient_detail.html'
-    context_object_name = 'patient'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Get patient invoices with related data and calculate totals
-        patient_invoices = PatientInvoice.objects.filter(
-            patient=self.object
-        ).select_related('electronic_invoice', 'branch').prefetch_related('items').order_by('-date')
-        
-        # Add total calculation for each invoice and count treatments
-        invoices_with_totals = []
-        total_treatments = 0
-        for invoice in patient_invoices:
-            total = sum(item.total for item in invoice.items.all())
-            invoice.calculated_total = total
-            total_treatments += invoice.items.count()
-            invoices_with_totals.append(invoice)
-        
-        context['patient_invoices'] = invoices_with_totals
-        context['total_treatments'] = total_treatments
-        return context
-
-
-class PatientUpdateView(UpdateView):
-    """Actualizar paciente"""
-    model = Patient
-    form_class = PatientForm
-    template_name = 'invoicing/patient_form.html'
-
-    def get_success_url(self):
-        return reverse('invoicing:patient_detail', kwargs={'pk': self.object.pk})
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Paciente actualizado exitosamente.')
-        return super().form_valid(form)
-
-
-# Treatment Views
-class TreatmentListView(ListView):
-    """Lista de tratamientos"""
-    model = Treatment
-    template_name = 'invoicing/treatment_list.html'
-    context_object_name = 'treatments'
-    paginate_by = 20
-
-    def get_queryset(self):
-        queryset = Treatment.objects.all()
-        search = self.request.GET.get('search')
-        active_only = self.request.GET.get('active_only', 'true')
-        
-        if search:
-            queryset = queryset.filter(
-                Q(code__icontains=search) |
-                Q(name__icontains=search)
-            )
-        
-        if active_only == 'true':
-            queryset = queryset.filter(is_active=True)
-            
-        return queryset.order_by('code')
-
-
-class TreatmentCreateView(CreateView):
-    """Crear nuevo tratamiento"""
-    model = Treatment
-    form_class = TreatmentForm
-    template_name = 'invoicing/treatment_form.html'
-    success_url = reverse_lazy('invoicing:treatment_list')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Tratamiento creado exitosamente.')
-        return super().form_valid(form)
-
-
-class TreatmentUpdateView(UpdateView):
-    """Actualizar tratamiento"""
-    model = Treatment
-    form_class = TreatmentForm
-    template_name = 'invoicing/treatment_form.html'
-    success_url = reverse_lazy('invoicing:treatment_list')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Tratamiento actualizado exitosamente.')
-        return super().form_valid(form)
-
-
-# Electronic Invoice Views
-class ElectronicInvoiceListView(ListView):
-    """Lista de facturas electrónicas"""
-    model = ElectronicInvoice
-    template_name = 'invoicing/electronic_invoice_list.html'
+# NEW: Main Patient Invoice Views (new workflow starting point)
+class PatientInvoiceListView(LoginRequiredMixin, ListView):
+    """Lista de todas las facturas de pacientes"""
+    model = PatientInvoice
+    template_name = 'invoicing/invoice_list.html'  # ADD THIS LINE
     context_object_name = 'invoices'
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = ElectronicInvoice.objects.all()
+        queryset = PatientInvoice.objects.select_related('branch', 'electronic_invoice').prefetch_related('items').order_by('-date')
         
         # Filtros
         search = self.request.GET.get('search')
-        month = self.request.GET.get('month')
-        year = self.request.GET.get('year')
+        assigned = self.request.GET.get('assigned')
+        branch = self.request.GET.get('branch')
         
         if search:
-            queryset = queryset.filter(invoice_number__icontains=search)
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=search) |
+                Q(patient_name__icontains=search)
+            )
             
-        if month and year:
-            queryset = queryset.filter(date__month=month, date__year=year)
-        elif year:
-            queryset = queryset.filter(date__year=year)
+        if assigned == 'yes':
+            queryset = queryset.filter(electronic_invoice__isnull=False)
+        elif assigned == 'no':
+            queryset = queryset.filter(electronic_invoice__isnull=True)
             
-        return queryset.order_by('-date', '-invoice_number')
+        if branch:
+            queryset = queryset.filter(branch_id=branch)
+            
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['branches'] = Branch.objects.all()
         context['current_filters'] = {
             'search': self.request.GET.get('search', ''),
-            'month': self.request.GET.get('month', ''),
-            'year': self.request.GET.get('year', ''),
+            'assigned': self.request.GET.get('assigned', ''),
+            'branch': self.request.GET.get('branch', ''),
         }
         return context
 
 
-class ElectronicInvoiceCreateView(CreateView):
-    """Crear nueva factura electrónica"""
-    model = ElectronicInvoice
-    form_class = ElectronicInvoiceForm
-    template_name = 'invoicing/electronic_invoice_form.html'
-
-    def get_success_url(self):
-        return reverse('invoicing:electronic_invoice_detail', kwargs={'pk': self.object.pk})
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Factura electrónica creada exitosamente.')
-        return super().form_valid(form)
-
-
-class ElectronicInvoiceDetailView(DetailView):
-    """Detalle de factura electrónica"""
-    model = ElectronicInvoice
-    template_name = 'invoicing/electronic_invoice_detail.html'
-    context_object_name = 'electronic_invoice'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        patient_invoices = self.object.patient_invoices.select_related('patient', 'branch').prefetch_related('items__treatment')
-        
-        # Calcular totales
-        total_monto_asembis = Decimal('0.00')
-        total_monto_dr = Decimal('0.00')
-        total_iva = Decimal('0.00')
-        total_general = Decimal('0.00')
-        
-        for patient_invoice in patient_invoices:
-            for item in patient_invoice.items.all():
-                total_monto_asembis += item.monto_asembis
-                total_monto_dr += item.monto_dr
-                total_iva += item.iva
-                total_general += item.total
-        
-        context.update({
-            'patient_invoices': patient_invoices,
-            'totals': {
-                'monto_asembis': total_monto_asembis,
-                'monto_dr': total_monto_dr,
-                'iva': total_iva,
-                'total': total_general,
-            }
-        })
-        
-        return context
-
-
-# Patient Invoice Views
-class PatientInvoiceCreateView(CreateView):
-    """Crear factura de paciente"""
+class PatientInvoiceCreateView(LoginRequiredMixin, CreateView):
+    """Crear nueva factura de paciente - NEW MAIN WORKFLOW START"""
     model = PatientInvoice
-    form_class = PatientInvoiceForm
-    template_name = 'invoicing/patient_invoice_form.html'
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        electronic_invoice_id = self.kwargs.get('electronic_invoice_id')
-        if electronic_invoice_id:
-            kwargs['electronic_invoice_id'] = electronic_invoice_id
-        return kwargs
+    form_class = StandalonePatientInvoiceForm
+    template_name = 'invoicing/invoice_form.html'
 
     def get_success_url(self):
         return reverse('invoicing:patient_invoice_detail', kwargs={'pk': self.object.pk})
 
     def form_valid(self, form):
-        messages.success(self.request, 'Factura de paciente creada exitosamente.')
+        messages.success(self.request, 'Factura de paciente creada exitosamente. Ahora puede agregar tratamientos.')
         return super().form_valid(form)
 
 
-class PatientInvoiceDetailView(DetailView):
+class PatientInvoiceDetailView(LoginRequiredMixin, DetailView):
     """Detalle de factura de paciente con items"""
     model = PatientInvoice
-    template_name = 'invoicing/patient_invoice_detail.html'
+    template_name = 'invoicing/invoice_detail.html'
     context_object_name = 'patient_invoice'
 
     def get_context_data(self, **kwargs):
@@ -504,17 +248,259 @@ class PatientInvoiceDetailView(DetailView):
         return redirect('invoicing:patient_invoice_detail', pk=self.object.pk)
 
 
-class PatientInvoiceUpdateView(UpdateView):
+class PatientInvoiceUpdateView(LoginRequiredMixin, UpdateView):
     """Actualizar factura de paciente"""
     model = PatientInvoice
-    form_class = PatientInvoiceForm
-    template_name = 'invoicing/patient_invoice_form.html'
+    form_class = StandalonePatientInvoiceForm
+    template_name = 'invoicing/invoice_form.html'
 
     def get_success_url(self):
         return reverse('invoicing:patient_invoice_detail', kwargs={'pk': self.object.pk})
 
     def form_valid(self, form):
         messages.success(self.request, 'Factura de paciente actualizada exitosamente.')
+        return super().form_valid(form)
+
+
+# Electronic Invoice Views (now for grouping)
+class ElectronicInvoiceListView(LoginRequiredMixin, ListView):
+    """Lista de facturas electrónicas"""
+    model = ElectronicInvoice
+    template_name = 'invoicing/electronic_invoice_list.html'
+    context_object_name = 'invoices'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = ElectronicInvoice.objects.all()
+        
+        # Filtros
+        search = self.request.GET.get('search')
+        month = self.request.GET.get('month')
+        year = self.request.GET.get('year')
+        
+        if search:
+            queryset = queryset.filter(invoice_number__icontains=search)
+            
+        if month and year:
+            queryset = queryset.filter(date__month=month, date__year=year)
+        elif year:
+            queryset = queryset.filter(date__year=year)
+            
+        return queryset.order_by('-date', '-invoice_number')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['current_filters'] = {
+            'search': self.request.GET.get('search', ''),
+            'month': self.request.GET.get('month', ''),
+            'year': self.request.GET.get('year', ''),
+        }
+        context['unassigned_count'] = PatientInvoice.objects.filter(electronic_invoice__isnull=True).count()
+        return context
+
+
+class ElectronicInvoiceCreateView(LoginRequiredMixin, CreateView):
+    """Crear nueva factura electrónica"""
+    model = ElectronicInvoice
+    form_class = ElectronicInvoiceForm
+    template_name = 'invoicing/electronic_invoice_form.html'
+
+    def get_success_url(self):
+        return reverse('invoicing:electronic_invoice_detail', kwargs={'pk': self.object.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Factura electrónica creada exitosamente.')
+        return super().form_valid(form)
+
+
+class ElectronicInvoiceDetailView(LoginRequiredMixin, DetailView):
+    """Detalle de factura electrónica"""
+    model = ElectronicInvoice
+    template_name = 'invoicing/electronic_invoice_detail.html'
+    context_object_name = 'electronic_invoice'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        patient_invoices = self.object.patient_invoices.select_related('branch').prefetch_related('items__treatment')
+        
+        # Calcular totales
+        total_monto_asembis = Decimal('0.00')
+        total_monto_dr = Decimal('0.00')
+        total_iva = Decimal('0.00')
+        total_general = Decimal('0.00')
+        
+        for patient_invoice in patient_invoices:
+            for item in patient_invoice.items.all():
+                total_monto_asembis += item.monto_asembis
+                total_monto_dr += item.monto_dr
+                total_iva += item.iva
+                total_general += item.total
+        
+        context.update({
+            'patient_invoices': patient_invoices,
+            'totals': {
+                'monto_asembis': total_monto_asembis,
+                'monto_dr': total_monto_dr,
+                'iva': total_iva,
+                'total': total_general,
+            },
+            'unassigned_invoices': PatientInvoice.objects.filter(electronic_invoice__isnull=True).order_by('-date')
+        })
+        
+        return context
+
+
+class ElectronicInvoicePDFView(LoginRequiredMixin, DetailView):
+    """Export electronic invoice as PDF"""
+    model = ElectronicInvoice
+    
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        patient_invoices = self.object.patient_invoices.select_related('branch').prefetch_related('items__treatment')
+        
+        # Calculate totals
+        total_monto_asembis = Decimal('0.00')
+        total_monto_dr = Decimal('0.00')
+        total_iva = Decimal('0.00')
+        total_general = Decimal('0.00')
+        
+        for patient_invoice in patient_invoices:
+            for item in patient_invoice.items.all():
+                total_monto_asembis += item.monto_asembis
+                total_monto_dr += item.monto_dr
+                total_iva += item.iva
+                total_general += item.total
+        
+        context = {
+            'electronic_invoice': self.object,
+            'patient_invoices': patient_invoices,
+            'totals': {
+                'monto_asembis': total_monto_asembis,
+                'monto_dr': total_monto_dr,
+                'iva': total_iva,
+                'total': total_general,
+            }
+        }
+        
+        # Render HTML template for PDF
+        html_string = render_to_string('invoicing/electronic_invoice_pdf.html', context)
+        
+        # Generate PDF
+        html = weasyprint.HTML(string=html_string)
+        pdf = html.write_pdf()
+        
+        # Return PDF response
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="factura_{self.object.invoice_number}.pdf"'
+        return response
+
+
+# NEW: Assign invoices to electronic invoice
+@login_required
+def assign_to_electronic_invoice(request, electronic_invoice_id):
+    """Assign patient invoices to an electronic invoice"""
+    electronic_invoice = get_object_or_404(ElectronicInvoice, id=electronic_invoice_id)
+    
+    if request.method == 'POST':
+        invoice_ids = request.POST.getlist('invoice_ids')
+        if invoice_ids:
+            PatientInvoice.objects.filter(
+                id__in=invoice_ids,
+                electronic_invoice__isnull=True
+            ).update(electronic_invoice=electronic_invoice)
+            
+            messages.success(request, f'Se asignaron {len(invoice_ids)} facturas a la factura electrónica.')
+        else:
+            messages.warning(request, 'No se seleccionaron facturas para asignar.')
+    
+    return redirect('invoicing:electronic_invoice_detail', pk=electronic_invoice_id)
+
+
+# Branch Views
+class BranchListView(LoginRequiredMixin, ListView):
+    """Lista de sucursales"""
+    model = Branch
+    template_name = 'invoicing/branch_list.html'
+    context_object_name = 'branches'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Branch.objects.all()
+        search = self.request.GET.get('search')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+        return queryset.order_by('name')
+
+
+class BranchCreateView(LoginRequiredMixin, CreateView):
+    """Crear nueva sucursal"""
+    model = Branch
+    fields = ['name']
+    template_name = 'invoicing/branch_form.html'
+    success_url = reverse_lazy('invoicing:branch_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Sucursal creada exitosamente.')
+        return super().form_valid(form)
+
+
+class BranchUpdateView(LoginRequiredMixin, UpdateView):
+    """Actualizar sucursal"""
+    model = Branch
+    fields = ['name']
+    template_name = 'invoicing/branch_form.html'
+    success_url = reverse_lazy('invoicing:branch_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Sucursal actualizada exitosamente.')
+        return super().form_valid(form)
+
+# Treatment Views
+class TreatmentListView(LoginRequiredMixin, ListView):
+    """Lista de tratamientos"""
+    model = Treatment
+    template_name = 'invoicing/treatment_list.html'
+    context_object_name = 'treatments'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = Treatment.objects.all()
+        search = self.request.GET.get('search')
+        active_only = self.request.GET.get('active_only', 'true')
+        
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search) |
+                Q(name__icontains=search)
+            )
+        
+        if active_only == 'true':
+            queryset = queryset.filter(is_active=True)
+            
+        return queryset.order_by('code')
+
+
+class TreatmentCreateView(LoginRequiredMixin, CreateView):
+    """Crear nuevo tratamiento"""
+    model = Treatment
+    form_class = TreatmentForm
+    template_name = 'invoicing/treatment_form.html'
+    success_url = reverse_lazy('invoicing:treatment_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Tratamiento creado exitosamente.')
+        return super().form_valid(form)
+
+
+class TreatmentUpdateView(LoginRequiredMixin, UpdateView):
+    """Actualizar tratamiento"""
+    model = Treatment
+    form_class = TreatmentForm
+    template_name = 'invoicing/treatment_form.html'
+    success_url = reverse_lazy('invoicing:treatment_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Tratamiento actualizado exitosamente.')
         return super().form_valid(form)
 
 
@@ -540,91 +526,3 @@ def get_treatments_ajax(request):
     } for t in treatments]
     
     return JsonResponse({'treatments': data})
-
-
-def get_patients_ajax(request):
-    """API endpoint para obtener pacientes"""
-    search = request.GET.get('search', '')
-    patients = Patient.objects.all()
-    
-    if search:
-        patients = patients.filter(
-            Q(name__icontains=search) |
-            Q(lname1__icontains=search) |
-            Q(lname2__icontains=search)
-        )
-    
-    patients = patients[:10]  # Limit results
-    
-    data = [{
-        'id': p.id,
-        'full_name': p.full_name
-    } for p in patients]
-    
-    return JsonResponse({'patients': data})
-
-
-def create_patient_ajax(request):
-    """API endpoint para crear pacientes via AJAX"""
-    if request.method == 'POST':
-        try:
-            import json
-            data = json.loads(request.body)
-            
-            name = data.get('name', '').strip()
-            lname1 = data.get('lname1', '').strip()
-            lname2 = data.get('lname2', '').strip()
-            
-            if not name or not lname1:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Nombre y primer apellido son obligatorios.'
-                })
-            
-            # Create patient
-            patient = Patient.objects.create(
-                name=name,
-                lname1=lname1,
-                lname2=lname2
-            )
-            
-            return JsonResponse({
-                'success': True,
-                'patient': {
-                    'id': patient.id,
-                    'full_name': patient.full_name
-                }
-            })
-            
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            })
-    
-    return JsonResponse({'success': False, 'error': 'Método no permitido.'})
-
-
-# Update the existing function to remove cedula references
-def get_patients_ajax_old(request):
-    """API endpoint para obtener pacientes"""
-    search = request.GET.get('search', '')
-    patients = Patient.objects.all()
-    
-    if search:
-        patients = patients.filter(
-            Q(name__icontains=search) |
-            Q(lname1__icontains=search) |
-            Q(lname2__icontains=search) |
-            Q(cedula__icontains=search)
-        )
-    
-    patients = patients[:10]  # Limit results
-    
-    data = [{
-        'id': p.id,
-        'cedula': p.cedula,
-        'full_name': p.full_name
-    } for p in patients]
-    
-    return JsonResponse({'patients': data})

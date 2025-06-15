@@ -1,17 +1,14 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar Sesión - Sistema de Facturación Médica</title>
+    <title>Iniciar Sesión - Sistema de Facturación</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link href="{% static 'invoicing/css/main.css' %}" rel="stylesheet">
     
     <style>
         body {
@@ -57,18 +54,14 @@
                 <div class="card login-card">
                     <div class="login-header">
                         <i class="bi bi-shield-lock fs-1 mb-3"></i>
-                        <h3 class="mb-0">Sistema de Facturación Médica</h3>
-                        <p class="mb-0 opacity-75">Ingrese sus credenciales para continuar</p>
+                        <h3 class="mb-0">Sistema de Facturación</h3>
+                        <p class="mb-0 opacity-75">Acceso al sistema</p>
                     </div>
                     <div class="login-body">
                         {% if form.errors %}
                             <div class="alert alert-danger" role="alert">
                                 <i class="bi bi-exclamation-triangle me-2"></i>
-                                {% for field, errors in form.errors.items %}
-                                    {% for error in errors %}
-                                        {{ error }}
-                                    {% endfor %}
-                                {% endfor %}
+                                Usuario o contraseña incorrectos.
                             </div>
                         {% endif %}
 
@@ -90,7 +83,7 @@
                                 </label>
                                 <input type="text" class="form-control" id="{{ form.username.id_for_label }}" 
                                        name="{{ form.username.name }}" value="{{ form.username.value|default:'' }}" 
-                                       placeholder="Ingrese su nombre de usuario" required autofocus>
+                                       placeholder="Ingrese su usuario" required autofocus>
                             </div>
                             
                             <div class="mb-4">
@@ -108,21 +101,7 @@
                                 </button>
                             </div>
                         </form>
-                        
-                        <div class="text-center mt-4">
-                            <small class="text-muted">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Si no tiene credenciales, contacte al administrador del sistema
-                            </small>
-                        </div>
                     </div>
-                </div>
-                
-                <div class="text-center mt-4">
-                    <p class="text-white-50">
-                        <i class="bi bi-shield-check me-2"></i>
-                        Acceso seguro y protegido
-                    </p>
                 </div>
             </div>
         </div>

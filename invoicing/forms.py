@@ -1,44 +1,9 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import (
-    Branch, Patient, Treatment, ElectronicInvoice, 
+    Branch, Treatment, ElectronicInvoice, 
     PatientInvoice, PatientInvoiceItem
 )
-
-
-class PatientForm(forms.ModelForm):
-    """Formulario para pacientes"""
-    
-    class Meta:
-        model = Patient
-        fields = ['cedula', 'name', 'lname1', 'lname2']
-        widgets = {
-            'cedula': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Ej: 123456789 (Nacional), 123456789012 (Residente), ABC123 (Extranjero)'
-            }),
-            'name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Nombre del paciente'
-            }),
-            'lname1': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Primer apellido'
-            }),
-            'lname2': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Segundo apellido (opcional)',
-                'required': False
-            }),
-        }
-
-    def clean_cedula(self):
-        cedula = self.cleaned_data.get('cedula')
-        if cedula:
-            # Use the model's validation
-            return Patient.validate_cedula(cedula)
-        return cedula
-
 
 class TreatmentForm(forms.ModelForm):
     """Formulario para tratamientos"""
@@ -104,17 +69,15 @@ class ElectronicInvoiceForm(forms.ModelForm):
 
 
 class PatientInvoiceForm(forms.ModelForm):
-    """Formulario para facturas de pacientes"""
+    """Formulario para facturas de pacientes - Updated for new workflow"""
     
     class Meta:
         model = PatientInvoice
-        fields = ['electronic_invoice', 'patient', 'branch', 'invoice_number', 'date']
+        fields = ['patient_name', 'branch', 'invoice_number', 'date', 'electronic_invoice']
         widgets = {
-            'electronic_invoice': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'patient': forms.Select(attrs={
-                'class': 'form-select'
+            'patient_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre completo del paciente'
             }),
             'branch': forms.Select(attrs={
                 'class': 'form-select'
@@ -127,11 +90,18 @@ class PatientInvoiceForm(forms.ModelForm):
                 'class': 'form-control',
                 'type': 'date'
             }),
+            'electronic_invoice': forms.Select(attrs={
+                'class': 'form-select'
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         electronic_invoice_id = kwargs.pop('electronic_invoice_id', None)
         super().__init__(*args, **kwargs)
+        
+        # Make electronic_invoice optional for the new workflow
+        self.fields['electronic_invoice'].required = False
+        self.fields['electronic_invoice'].empty_label = 'Sin asignar (se puede asignar después)'
         
         # If creating from an electronic invoice, pre-select it and hide the field
         if electronic_invoice_id:
@@ -143,6 +113,7 @@ class PatientInvoiceForm(forms.ModelForm):
         electronic_invoice = cleaned_data.get('electronic_invoice')
         invoice_number = cleaned_data.get('invoice_number')
         
+        # Only check uniqueness if electronic_invoice is assigned
         if electronic_invoice and invoice_number:
             # Check if invoice number already exists within the same electronic invoice
             existing = PatientInvoice.objects.filter(
@@ -262,3 +233,44 @@ class MonthlyReportForm(forms.Form):
         today = date.today()
         self.fields['month'].initial = today.month
         self.fields['year'].initial = today.year
+
+
+# New form for creating standalone patient invoices (new workflow)
+class StandalonePatientInvoiceForm(forms.ModelForm):
+    """Formulario simplificado para crear facturas de pacientes independientes"""
+    
+    class Meta:
+        model = PatientInvoice
+        fields = ['patient_name', 'branch', 'invoice_number', 'date']
+        widgets = {
+            'patient_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Juan Pérez Rodríguez'
+            }),
+            'branch': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'invoice_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: FAC-001'
+            }),
+            'date': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
+            }),
+        }
+
+    def clean_invoice_number(self):
+        invoice_number = self.cleaned_data.get('invoice_number')
+        if invoice_number:
+            # Check if invoice number already exists (for standalone invoices without electronic invoice)
+            existing = PatientInvoice.objects.filter(
+                invoice_number=invoice_number,
+                electronic_invoice__isnull=True  # Only check among unassigned invoices
+            )
+            if self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+                
+            if existing.exists():
+                raise ValidationError('Ya existe una factura con este número entre las facturas no asignadas.')
+        return invoice_number
